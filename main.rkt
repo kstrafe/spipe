@@ -1,13 +1,15 @@
 #lang racket/base
 
-;;;; First iteration of spipe, the universal programming pipeline
-
 (provide spipe)
 
 (require racket/function syntax/parse syntax/parse/define
          lens threading
-         (for-syntax racket/base racket/list racket/string racket/syntax
+         (for-syntax racket/base racket/function racket/list racket/string racket/syntax
                      threading))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Utilities for getting tags ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-for-syntax ((is-prefixed-datum? prefix-regexp) stx)
   (define dtm (syntax->datum stx))
@@ -41,34 +43,12 @@
 (define-for-syntax collect-writes (collect-identifiers "r?w" #:keywords-included? #f))
 (define-for-syntax collect-reads  (collect-identifiers "rw?" #:keywords-included? #t))
 
-(define-syntax-parser define-values*
-  ([_ () y] #'y)
-  ([_ x  y] #'(define-values x y)))
-
-(define-syntax-parser this-or-just-x
-  ([_ x] #'x)
-  ([z x (set str ino w) ...+] #'(~> x (set str _ w) ...)))
-
-(define-syntax-parser hash-ref-dot
-  ([_ hash key failure-result]
-   #:with (split ...) (map (lambda (x)
-                             (format-id (attribute key) "~a" x #:source (attribute key)))
-                           (string-split (symbol->string (syntax-e (attribute key))) "."))
-   #'(let/ec escape
-       (let ([escape* (curry escape failure-result)])
-         (~>
-           hash
-           (hash-ref _ 'split escape*) ...)))))
-
-; (define-for-syntax (nested-construct hash key keys v)
-;   (if (empty? keys)
-;     #`(lens-set (hash-ref-lens #,key) #,hash #,v)
-;     #`(begin
-;         (lens-set (hash-ref-lens #,key) #,hash
-;         )))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Utility hash-table getter and setter ;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (hash-ref-lens* key)
-  (make-lens (lambda (x) (hash-ref x key (hash)))
+  (make-lens (lambda (x  ) (hash-ref x key (make-immutable-hash)))
              (lambda (x y) (hash-set x key y))))
 
 (define (hash-ref-nested-lens* . keys)
@@ -81,7 +61,18 @@
                            (string-split (symbol->string (syntax-e (attribute key))) "."))
    #'(lens-set (hash-ref-nested-lens* 'split ...) hash v)))
 
-(require (for-syntax racket/function))
+(define-syntax-parser hash-ref-dot
+  ([_ hash key failure-result]
+   #:with (split ...) (map (lambda (x)
+                             (format-id (attribute key) "~a" x #:source (attribute key)))
+                           (string-split (symbol->string (syntax-e (attribute key))) "."))
+   #'(let/ec escape
+       (let ([escape* (curry escape failure-result)])
+         (~>
+           hash
+           (hash-ref _ 'split escape*) ...)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-syntax-parser let-values*
   ([_ ([() evaluation]) body ...+]
