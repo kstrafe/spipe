@@ -24,7 +24,7 @@ Spipe is a syntax transformer that takes care of hash-table accesses and updates
 
   Accessors without an r: or w: tag are automatically rw:.
 
-  It's also possible to not specify any write arguments in which case the hash-table will simply pass through the function. This may be useful when side-effects are desired. Not having any r: accessors is possible too, allowing one to directly assign values to the hash-table.
+  It's also possible to not specify any arguments in which case the hash-table will simply pass through the function. This may be useful when side-effects are desired. In this case the return value of the associated @italic[transform] is ignored. Only having w: accessors is possible too, allowing one to directly assign values to the hash-table.
 
   Note that procedure can also be a syntax transformer but this is rather unconventional. Only the read and keyword arguments will be seen by this transformation, which are provided in their original syntax form with accessor tags removed.
 }
@@ -41,7 +41,7 @@ A transformation begins by first specifying a hash-table and then listing the su
   (add1 value))
 ]
 
-In the above @racket[spipe] works by applying @racket[add1] to the entry @racket['value] inside the hash-table. The first argument to spipe is always a hash-table - not seen as a transformation - and may be any arbitrary expression.
+In the above @racket[spipe] works by applying @racket[add1] to the entry @racket['value] inside the hash-table. The first argument to spipe is always a hash-table - not a transformation - and is an arbitrary expression as that yields @racket[hash?].
 
 @racket[value] is untagged and is thus considered rw:, meaning that it is used both as input to @racket[add1] as well as output from @racket[add1]. If this is undesirable, one can manually tag inputs and outputs.
 
