@@ -1,11 +1,10 @@
-#lang racket
+#lang racket/base
 
 ;;;; First iteration of spipe, the universal programming pipeline
 
 (provide spipe)
 
-(require syntax/parse
-         syntax/parse/define
+(require racket/function syntax/parse syntax/parse/define
          lens threading
          (for-syntax racket/base racket/list racket/string racket/syntax
                      threading))
