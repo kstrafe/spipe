@@ -10,19 +10,15 @@
          (for-syntax racket/base racket/list racket/string racket/syntax
                      threading))
 
-(define-for-syntax (is-write-datum? stx)
+(define-for-syntax ((is-prefixed-datum? prefix-regexp) stx)
   (define dtm (syntax->datum stx))
   (and (list? dtm)
        (> (length dtm) 1)
        (symbol? (first dtm))
-       (regexp-match? #px"^r?w:$" (symbol->string (first dtm)))))
+       (regexp-match? (pregexp (string-append "^" prefix-regexp ":$")) (symbol->string (first dtm)))))
 
-(define-for-syntax (is-read-datum? stx)
-  (define dtm (syntax->datum stx))
-  (and (list? dtm)
-       (> (length dtm) 1)
-       (symbol? (first dtm))
-       (regexp-match? #px"^rw?:$" (symbol->string (first dtm)))))
+(define-for-syntax is-read-datum? (is-prefixed-datum? "rw?"))
+(define-for-syntax is-write-datum? (is-prefixed-datum? "r?w"))
 
 (define-for-syntax (collect-writes arguments)
   (map
