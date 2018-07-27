@@ -2,50 +2,138 @@
 
 (provide spipe)
 
-(require racket/function syntax/parse syntax/parse/define
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(require racket/function syntax/parse/define
          lens threading
          (for-syntax racket/base racket/function racket/list racket/string racket/syntax
-                     threading))
+                     syntax/parse/define)
+         (for-meta 2 racket/base))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Utilities for getting tags ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Syntax classes and utilities ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(begin-for-syntax
+
+  (define-syntax-parser id-attribute->string
+    ([_ id:id]
+     #'(symbol->string (syntax-e (attribute id)))))
+
+  (define-syntax-class plain-arg
+    #:description "an identifier without any r/w: access specifiers"
+    (pattern arg:id
+             #:fail-when (regexp-match? #px"^(r:|w:|rw:)[^:]+$" (id-attribute->string arg))
+                         "identifier contains r/w: prefix, illegal in this position"))
+
+  (define-splicing-syntax-class optional-kwarg
+    #:description "an identifier or a keyword followed by an identifier"
+    (pattern (~seq (~optional kw:keyword) arg:plain-arg)))
+
+  (define-splicing-syntax-class optional-read-kwarg
+    #:description "an identifier or a keyword followed by an \"r:\"-prefixed identifier"
+    (pattern (~seq (~optional kw:keyword) arg:id)
+             #:fail-unless (regexp-match? #px"^r:[^:]+$" (id-attribute->string arg))
+                           "identifier is not a proper read form \"r:[^:]+\", e.g.: \"r:name\""))
+
+  (define-splicing-syntax-class write-arg
+    #:description "an identifier or a keyword followed by a \"w:\"-prefixed identifier"
+    (pattern (~seq arg:id)
+             #:fail-unless (regexp-match? #px"^w:[^:]+$" (id-attribute->string arg))
+                           "identifier is not a proper write form \"w:[^:]+\", e.g.: \"w:name\""))
+
+  (define-splicing-syntax-class optional-read-write-kwarg
+    #:description "an identifier or a keyword followed by an (optionally \"rw:\"-prefixed) identifier"
+    (pattern (~seq (~optional kw:keyword) arg:id)
+             #:fail-unless (regexp-match? #px"^(rw:)?[^:]+$" (id-attribute->string arg))
+                           "identifier is not a proper read-write form \"(rw:)?[^:]+\", e.g.: \"rw:name\" or \"name\""))
+
+  (define-splicing-syntax-class args
+    (pattern (~or read:optional-read-kwarg
+                  write:write-arg
+                  read-write:optional-read-write-kwarg
+                  (~seq (~optional kw:keyword) ((~datum  r:)  r-arg:plain-arg  r-kwarg:optional-kwarg ...))
+                  (~seq                        ((~datum  w:)  w-arg:plain-arg                         ...+))
+                  (~seq (~optional kw:keyword) ((~datum rw:) rw-arg:plain-arg rw-kwarg:optional-kwarg ...)))))
+
+  (define (false-merge . lsts)
+    (apply map (lambda x (filter identity x)) lsts)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; spipe - main implementation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-for-syntax ((is-prefixed-datum? prefix-regexp) stx)
-  (define dtm (syntax->datum stx))
-  (and (list? dtm)
-       (> (length dtm) 1)
-       (symbol? (first dtm))
-       (regexp-match? (pregexp (string-append "^" prefix-regexp ":$")) (symbol->string (first dtm)))))
+(define-syntax-parser spipe
+  ([_ initial:expr
+      (call:expr arguments:args ...) ...]
+   #:with ((reads+ ...) ...)
+     (map flatten (map false-merge
+                       (attribute arguments.read)
+                       (attribute arguments.read-write)
+                       (attribute arguments.kw)
+                       (attribute arguments.r-arg)
+                       (attribute arguments.r-kwarg)
+                       (attribute arguments.rw-arg)
+                       (attribute arguments.rw-kwarg)))
+   #:with ((writes+ ...) ...)
+     (map flatten (map false-merge
+                       (attribute arguments.write)
+                       (attribute arguments.read-write)
+                       (attribute arguments.w-arg)
+                       (attribute arguments.rw-arg)
+                       (attribute arguments.rw-kwarg)))
+   #:with ((reads+2 ...) ...) (map syntax-flatten (attribute reads+))
+   #:with ((reads+3 ...) ...) (map (remove-:-prefixes "r|rw") (attribute reads+2))
+   #:with ((reads+4 ...) ...) (map remove-keywords (attribute reads+3))
 
-(define-for-syntax ((collect-identifiers prefix-regexp #:keywords-included? kw-include) arguments)
-  (define is-desired-datum? (is-prefixed-datum? prefix-regexp))
-  (map
-    (lambda (x)
-      (flatten
-        (map
-          (lambda (x)
-            (cond
-              [(identifier? x)     (let ([n (regexp-match (pregexp (string-append "^(" prefix-regexp ":(.+)|([^:]+))$")) (symbol->string (syntax->datum x)))])
-                                     (datum->syntax x (string->symbol (or (third n) (fourth n))) x))]
-              [(is-desired-datum? x) (rest (syntax-e x))]
-              [else                x]))
-          (filter
-            (lambda (x)
-              (cond
-                [(identifier? x)     (regexp-match? (pregexp (string-append "^(" prefix-regexp ":.+|[^:]+)$")) (symbol->string (syntax->datum x)))]
-                [(keyword? (syntax-e x)) kw-include]
-                [(is-desired-datum? x) #t]
-                [else                #f]))
-            x))))
-    arguments))
+   #:with ((writes+2 ...) ...) (map syntax-flatten (attribute writes+ ))
+   #:with ((writes+3 ...) ...) (map (remove-:-prefixes "w|rw") (attribute writes+2))
+   #:with ((writes+4 ...) ...) (map remove-keywords (attribute writes+3))
 
-(define-for-syntax collect-writes (collect-identifiers "r?w" #:keywords-included? #f))
-(define-for-syntax collect-reads  (collect-identifiers "rw?" #:keywords-included? #t))
+   #'(~>
+         initial
+         (empty-handle (reads+ ...) (writes+ ...)
+           (lambda (table)
+              (call table)
+              table)
+           (lambda (x)
+             (let ([reads+4 (hash-ref-dot x reads+4 #f)] ...)
+               (let-values* ([(writes+4 ...) (call reads+3 ...)])
+                 (~>
+                   x
+                   (hash-set-dot _ writes+4 writes+4) ...
+                 ))))) ...)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Implementation details and utilities ;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-syntax-parser empty-handle
+  ([_ data () () empty-case non-empty] #'(empty-case data))
+  ([_ data x  y  empty-case non-empty] #'(non-empty  data)))
+
+(define-syntax-parser let-values*
+  ([_ ([() evaluation]) body ...+]
+   #'(begin evaluation body ...))
+  ([_ ([bindings evaluation]) body ...+]
+   #'(let-values ([bindings evaluation]) body ...)))
+
+(define-for-syntax (remove-keywords lst)
+  (filter (lambda (x) (not (keyword? (syntax-e x)))) lst))
+
+(define-for-syntax ((remove-:-prefixes prefix) lst)
+  (map (lambda (x)
+         (if (symbol? (syntax-e x))
+           (datum->syntax x (string->symbol (fourth (regexp-match (pregexp (string-append "^((" prefix "):)?(.+)$")) (symbol->string (syntax-e x))))) x x x)
+           x)) lst))
+
+(define-for-syntax (syntax-flatten lst)
+  (flatten (map (lambda (x) (if (list? (syntax-e x)) (syntax-e x) x)) lst)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utility hash-table getter and setter ;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Implements parsing of the dot-notation for accessing hash tables.
 
 (define (hash-ref-lens* key)
   (make-lens (lambda (x  ) (hash-ref x key (make-immutable-hash)))
@@ -73,53 +161,3 @@
            (hash-ref _ 'split escape*) ...)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-syntax-parser let-values*
-  ([_ ([() evaluation]) body ...+]
-   #'(begin evaluation body ...))
-  ([_ ([bindings evaluation]) body ...+]
-   #'(let-values ([bindings evaluation]) body ...)))
-
-;; TODO use these
-(begin-for-syntax
-  ; arguments => name
-  ;              kw name | optional-kwarg
-  ;              kw (sp optional-kwarg)
-
-  (define-splicing-syntax-class optional-kwarg
-    #:description "an identifier or a keyword followed by an identifier"
-    (pattern (~seq (~optional kw:keyword) arg:id)))
-
-  (define-splicing-syntax-class args
-    (pattern (~or singular:optional-kwarg
-                  (~seq (~optional kw:keyword) ((~datum  r:) rarg:id kwarg:optional-kwarg ...))
-                  (~seq                        ((~datum  w:) arg:id               ...+))
-                  (~seq (~optional kw:keyword) ((~datum rw:) kwarg:optional-kwarg ...+))))))
-
-(define-syntax-parser empty-handle
-  ([_ data () () empty-case non-empty] #'(empty-case data))
-  ([_ data x  y  empty-case non-empty] #'(non-empty data)))
-
-(define-syntax-parser spipe
-  ([_ initial:expr
-      (call:expr arguments ...) ...]
-   #:with ((writes ...) ...) (collect-writes (attribute arguments))
-   #:with ((reads  ...) ...) (collect-reads (attribute arguments))
-   #:with ((reads-no-kwargs ...) ...) (map (lambda (x) (filter (lambda (y) (not (keyword? (syntax-e y)))) x))
-                                           (attribute reads))
-   #:with ((reads* ...) ...) (map (curryr remove-duplicates free-identifier=?)
-                                  (attribute reads-no-kwargs))
-   #'(~>
-         initial
-         (empty-handle (reads ...) (writes ...)
-           (lambda (table)
-              (call table)
-              table)
-           (lambda (x)
-             (let ([reads* (hash-ref-dot x reads* #f)] ...)
-               (let-values* ([(writes ...) (call reads ...)])
-                 (~>
-                   x
-                   (hash-set-dot _ writes writes) ...
-                 ))))) ...
-      )))

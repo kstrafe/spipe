@@ -141,3 +141,16 @@ Macros can be used for procedures. Spipe guarantees that the read arguments are 
   (make-immutable-hash '((value . 123)))
   (print-both r:value))
 ]
+
+@subsection{Entire Table}
+
+Sometimes we just want to send the entire table to some function. To do so we specify no inputs and no outputs.
+
+@examples[
+(require spipe)
+(spipe
+  (make-immutable-hash '((value . 123)))
+  (writeln))
+]
+
+Returned values are ignored.
