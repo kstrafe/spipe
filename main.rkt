@@ -17,49 +17,30 @@
        (symbol? (first dtm))
        (regexp-match? (pregexp (string-append "^" prefix-regexp ":$")) (symbol->string (first dtm)))))
 
-(define-for-syntax is-read-datum? (is-prefixed-datum? "rw?"))
-(define-for-syntax is-write-datum? (is-prefixed-datum? "r?w"))
-
-(define-for-syntax (collect-writes arguments)
+(define-for-syntax ((collect-identifiers prefix-regexp #:keywords-included? kw-include) arguments)
+  (define is-desired-datum? (is-prefixed-datum? prefix-regexp))
   (map
     (lambda (x)
       (flatten
         (map
           (lambda (x)
             (cond
-              [(identifier? x)     (let ([n (regexp-match #px"^(r?w:(.+)|([^:]+))$" (symbol->string (syntax->datum x)))])
+              [(identifier? x)     (let ([n (regexp-match (pregexp (string-append "^(" prefix-regexp ":(.+)|([^:]+))$")) (symbol->string (syntax->datum x)))])
                                      (datum->syntax x (string->symbol (or (third n) (fourth n))) x))]
-              [(is-write-datum? x) (rest (syntax-e x))]
+              [(is-desired-datum? x) (rest (syntax-e x))]
               [else                x]))
           (filter
             (lambda (x)
               (cond
-                [(identifier? x)     (regexp-match? #px"^(r?w:.+|[^:]+)$" (symbol->string (syntax->datum x)))]
-                [(is-write-datum? x) #t]
+                [(identifier? x)     (regexp-match? (pregexp (string-append "^(" prefix-regexp ":.+|[^:]+)$")) (symbol->string (syntax->datum x)))]
+                [(keyword? (syntax-e x)) kw-include]
+                [(is-desired-datum? x) #t]
                 [else                #f]))
             x))))
     arguments))
 
-(define-for-syntax (collect-reads arguments)
-  (map
-    (lambda (x)
-      (flatten
-        (map
-          (lambda (x)
-            (cond
-              [(identifier? x)     (let ([n (regexp-match #px"^(rw?:(.+)|([^:]+))$" (symbol->string (syntax->datum x)))])
-                                     (datum->syntax x (string->symbol (or (third n) (fourth n))) x))]
-              [(is-read-datum? x) (rest (syntax-e x))]
-              [else                x]))
-          (filter
-            (lambda (x)
-              (cond
-                [(identifier? x)         (regexp-match? #px"^(rw?:.+|[^:]+)$" (symbol->string (syntax->datum x)))]
-                [(keyword? (syntax-e x)) #t]
-                [(is-read-datum? x)      #t]
-                [else                    #f]))
-            x))))
-    arguments))
+(define-for-syntax collect-writes (collect-identifiers "r?w" #:keywords-included? #f))
+(define-for-syntax collect-reads  (collect-identifiers "rw?" #:keywords-included? #t))
 
 (define-syntax-parser define-values*
   ([_ () y] #'y)
