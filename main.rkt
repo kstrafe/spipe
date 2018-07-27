@@ -96,6 +96,10 @@
                   (~seq                        ((~datum  w:) arg:id               ...+))
                   (~seq (~optional kw:keyword) ((~datum rw:) kwarg:optional-kwarg ...+))))))
 
+(define-syntax-parser empty-handle
+  ([_ data () () empty-case non-empty] #'(empty-case data))
+  ([_ data x  y  empty-case non-empty] #'(non-empty data)))
+
 (define-syntax-parser spipe
   ([_ initial:expr
       (call:expr arguments ...) ...]
@@ -105,15 +109,17 @@
                                            (attribute reads))
    #:with ((reads* ...) ...) (map (curryr remove-duplicates free-identifier=?)
                                   (attribute reads-no-kwargs))
-   (writeln (attribute arguments))
-   (writeln (attribute reads))
    #'(~>
          initial
-         ((lambda (x)
-           (let ([reads* (hash-ref-dot x reads* #f)] ...)
-             (let-values* ([(writes ...) (call reads ...)])
-               (~>
-                 x
-                 (hash-set-dot _ writes writes) ...
-               ))))) ...
+         (empty-handle (reads ...) (writes ...)
+           (lambda (table)
+              (call table)
+              table)
+           (lambda (x)
+             (let ([reads* (hash-ref-dot x reads* #f)] ...)
+               (let-values* ([(writes ...) (call reads ...)])
+                 (~>
+                   x
+                   (hash-set-dot _ writes writes) ...
+                 ))))) ...
       )))
