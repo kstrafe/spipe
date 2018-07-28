@@ -151,6 +151,40 @@
                    (hash-set-dot _ writes+4 writes+4) ...
                  ))))) ...)))
 
+(module+ test
+  (require rackunit)
+  (test-equal? "Base case"    (spipe (hash))                             (hash))
+  (test-equal? "Empty access" (spipe (hash) (identity r:read w:write))   (hash 'write #f))
+  (test-equal? "Dot-access"   (spipe (hash) (identity r:a.b.c w:d.e.f))  (hash 'd (hash 'e (hash 'f #f))))
+  (test-equal? "Auto-rw"      (spipe (hash 'a 1) (add1 a))               (hash 'a 2))
+  (test-equal? "r: and w:"    (spipe (hash 'a 1) (add1 r:a w:b))         (hash 'a 1 'b 2))
+  (test-equal? "Keyword"      (let ([f (lambda (x #:key y) (- x y))])
+                                (spipe (hash 'a 1 'b 2)
+                                       (f r:a #:key r:b w:c)))           (hash 'a 1 'b 2 'c -1))
+  (test-equal? "Keyword-ord"  (let ([f (lambda (x #:key y) (- x y))])
+                                (spipe (hash 'a 1 'b 2)
+                                       (f #:key r:a r:b w:c)))           (hash 'a 1 'b 2 'c 1))
+  (test-equal? "Keyword-r1"   (let ([f (lambda (x #:key y) (- x y))])
+                                (spipe (hash 'a 1 'b 2)
+                                       (f #:key (r: a b) w:c)))          (hash 'a 1 'b 2 'c 1))
+  (test-equal? "Keyword-r2"   (let ([f (lambda (x #:key y) (- x y))])
+                                (spipe (hash 'a 1 'b 2)
+                                       (f (r: #:key a b) w:c)))          (hash 'a 1 'b 2 'c 1))
+  (test-equal? "Keyword-r3"   (let ([f (lambda (x #:key y) (- x y))])
+                                (spipe (hash 'a 1 'b 2)
+                                       (f (r: a #:key b) w:c)))          (hash 'a 1 'b 2 'c -1))
+  (test-equal? "rw order 1"   (spipe (hash 'a 1 'b 2) (- w:c (r: a b)))  (hash 'a 1 'b 2 'c -1))
+  (test-equal? "rw order 2"   (spipe (hash 'a 1 'b 2) (- (r: a b) w:c))  (hash 'a 1 'b 2 'c -1))
+  (test-equal? "rw order 3"   (spipe (hash 'a 1 'b 2) (- r:a w:c r:b))   (hash 'a 1 'b 2 'c -1))
+  (test-equal? "e:"           (let ([v 123])
+                                (spipe (hash)
+                                       (identity e:v w:x)))              (hash 'x 123))
+  (test-equal? "x: 1"         (spipe (hash) (identity x:(+ 1 2 3) w:a))  (hash 'a 6))
+  (test-equal? "x: 2"         (spipe (hash) (- x: 1 x: 2 w:a))           (hash 'a -1))
+  (test-equal? "(x: 1)"       (spipe (hash) (- (x: 1  2) w:a))           (hash 'a -1))
+  (test-equal? "(x: 2)"       (spipe (hash) (- (x: 2  1) w:a))           (hash 'a 1))
+  )
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Implementation details and utilities ;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
