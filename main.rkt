@@ -22,8 +22,8 @@
   (define-syntax-class plain-arg
     #:description "an identifier without any r/w: access specifiers"
     (pattern arg:id
-             #:fail-when (regexp-match? #px"^(r:|w:|rw:)[^:]+$" (id-attribute->string arg))
-                         "identifier contains r/w: prefix, illegal in this position"))
+             #:fail-when (regexp-match? #px"^(r:|w:|rw:|e:)[^:]+$" (id-attribute->string arg))
+                         "identifier contains r/w/rw/e: prefix, illegal in this position"))
 
   (define-splicing-syntax-class optional-kwarg
     #:description "an identifier or a keyword followed by an identifier"
@@ -47,13 +47,26 @@
              #:fail-unless (regexp-match? #px"^(rw:)?[^:]+$" (id-attribute->string arg))
                            "identifier is not a proper read-write form \"(rw:)?[^:]+\", e.g.: \"rw:name\" or \"name\""))
 
+  (define-splicing-syntax-class optional-external-kwarg
+    #:description "an identifier or a keyword followed by an (optionally \"e:\"-prefixed) identifier"
+    (pattern (~seq (~optional kw:keyword) arg:id)
+             #:fail-unless (regexp-match? #px"^e:[^:]+$" (id-attribute->string arg))
+                           "identifier is not a proper read-write form \"e:[^:]+\", e.g.: \"e:name\""))
+
   (define-splicing-syntax-class args
     (pattern (~or read:optional-read-kwarg
                   write:write-arg
                   read-write:optional-read-write-kwarg
-                  (~seq (~optional kw:keyword) ((~datum  r:)  r-arg:plain-arg  r-kwarg:optional-kwarg ...))
-                  (~seq                        ((~datum  w:)  w-arg:plain-arg                         ...+))
-                  (~seq (~optional kw:keyword) ((~datum rw:) rw-arg:plain-arg rw-kwarg:optional-kwarg ...)))))
+                  external:optional-external-kwarg
+                  (~seq kw:keyword ((~datum  r:) ~! r-arg:plain-arg  r-kwarg:optional-kwarg  ...))
+                  (~seq            ((~datum  r:) ~!                  r-kwarg:optional-kwarg  ...+))
+                  (~seq            ((~datum  w:) ~! w-arg:plain-arg                          ...+))
+                  (~seq kw:keyword ((~datum  e:) ~! e-arg:plain-arg  e-kwarg:optional-kwarg  ...))
+                  (~seq            ((~datum  e:) ~!                  e-kwarg:optional-kwarg  ...+))
+                  (~seq kw:keyword ((~datum rw:) ~! rw-arg:plain-arg rw-kwarg:optional-kwarg ...))
+                  (~seq            ((~datum rw:) ~!                  rw-kwarg:optional-kwarg ...+))
+                  (~seq (~optional kw:keyword) (any          (~fail (string-append "illegal head specifier" )) ~! ignore ...  ))
+                  )))
 
   (define (false-merge . lsts)
     (apply map (lambda x (filter identity x)) lsts)))
@@ -74,6 +87,19 @@
                        (attribute arguments.r-kwarg)
                        (attribute arguments.rw-arg)
                        (attribute arguments.rw-kwarg)))
+   #:with ((reads+ext ...) ...)
+     (map flatten (map false-merge
+                       (attribute arguments.read)
+                       (attribute arguments.read-write)
+                       (attribute arguments.external)
+                       (attribute arguments.kw)
+                       (attribute arguments.r-arg)
+                       (attribute arguments.r-kwarg)
+                       (attribute arguments.rw-arg)
+                       (attribute arguments.rw-kwarg)
+                       (attribute arguments.e-arg)
+                       (attribute arguments.e-kwarg)
+                       ))
    #:with ((writes+ ...) ...)
      (map flatten (map false-merge
                        (attribute arguments.write)
@@ -85,10 +111,14 @@
    #:with ((reads+3 ...) ...) (map (remove-:-prefixes "r|rw") (attribute reads+2))
    #:with ((reads+4 ...) ...) (map remove-keywords (attribute reads+3))
 
+   #:with ((reads+ext+2 ...) ...) (map syntax-flatten (attribute reads+ext))
+   #:with ((reads+ext+3 ...) ...) (map (remove-:-prefixes "e|r|rw") (attribute reads+ext+2))
+
    #:with ((writes+2 ...) ...) (map syntax-flatten (attribute writes+ ))
    #:with ((writes+3 ...) ...) (map (remove-:-prefixes "w|rw") (attribute writes+2))
    #:with ((writes+4 ...) ...) (map remove-keywords (attribute writes+3))
 
+  ; (writeln (attribute reads+ext))
    #'(~>
          initial
          (empty-handle (reads+ ...) (writes+ ...)
@@ -97,7 +127,7 @@
               table)
            (lambda (x)
              (let ([reads+4 (hash-ref-dot x reads+4 #f)] ...)
-               (let-values* ([(writes+4 ...) (call reads+3 ...)])
+               (let-values* ([(writes+4 ...) (call reads+ext+3 ...)])
                  (~>
                    x
                    (hash-set-dot _ writes+4 writes+4) ...

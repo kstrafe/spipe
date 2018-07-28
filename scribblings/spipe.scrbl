@@ -13,7 +13,7 @@ Spipe is a syntax transformer that takes care of hash-table accesses and updates
 
 @defform[(spipe table-expr transformer ...)
   #:grammar [(transformation (procedure transform ...))
-             (transform (code:line) r:accessor w:accessor rw:accessor (r: accessor ...+) (w: accessor ...+) (rw: accessor ...+))
+             (transform (code:line) r:accessor w:accessor rw:accessor e:id (r: accessor ...+) (w: accessor ...+) (rw: accessor ...+) (e: id ...+))
              (accessor (code:line) id id.accessor)
              ]
   #:contracts ([table-expr hash?]
@@ -24,7 +24,7 @@ Spipe is a syntax transformer that takes care of hash-table accesses and updates
 
   Accessors without an r: or w: tag are automatically rw:.
 
-  It's also possible to not specify any arguments in which case the hash-table will simply pass through the function. This may be useful when side-effects are desired. In this case the return value of the associated @italic[transform] is ignored. Only having w: accessors is possible too, allowing one to directly assign values to the hash-table.
+  It's also possible to not specify any arguments in which case the hash-table will simply pass through the function. This may be useful when side-effects are desired. In this case the return value of the associated @italic{transform} is ignored. Only having w: accessors is possible too, allowing one to directly assign values to the hash-table.
 
   Note that procedure can also be a syntax transformer but this is rather unconventional. Only the read and keyword arguments will be seen by this transformation, which are provided in their original syntax form with accessor tags removed.
 }
@@ -118,7 +118,7 @@ The first read tagged identifier after a keyword is the value used for that keyw
 
 @subsection{Side-effects}
 
-@racket[spipe] has no side-effects, but one can use procedures which produce side-effects as transformations. If no writes are intended, one can leave out all w: and rw: accessors.
+@racket[spipe] has no side-effects, but one can use procedures which produce side-effects as transformations. If no writes are intended, one can leave out all w: and rw: accessors and the state will simply pass through the transformation.
 
 @examples[
 #:label "Using side-effects"
@@ -154,3 +154,19 @@ Sometimes we just want to send the entire table to some function. To do so we sp
 ]
 
 Returned values are ignored.
+
+@subsection[#:tag "ext-acc"]{External Accessor}
+
+It may not be practical to put some values inside the hash table, nor is it comfortable to curry, in such a case you may want to use the e: access specifier.
+
+@examples[
+(require spipe)
+(define my-value 100)
+(spipe
+  (hash)
+  (add1 e:my-value w:something.else))
+]
+
+@margin-note{e: functions just like r:, but instead of reading from the hash we read from the environment.}
+
+e: does not split on . or do any processing. It directly references variables in the environment.
