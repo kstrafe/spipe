@@ -6,7 +6,7 @@
 
 (require racket/function syntax/parse/define
          lens threading
-         (for-syntax racket/base racket/function racket/list racket/string racket/syntax
+         (for-syntax racket/base racket/function racket/list racket/match racket/string racket/syntax
                      syntax/parse/define)
          (for-meta 2 racket/base))
 
@@ -53,11 +53,20 @@
              #:fail-unless (regexp-match? #px"^e:[^:]+$" (id-attribute->string arg))
                            "identifier is not a proper read-write form \"e:[^:]+\", e.g.: \"e:name\""))
 
+  (define-splicing-syntax-class optional-expression-kwarg
+    #:description "an optional keyword followed by \"x:\" and an expression"
+    (pattern (~seq (~optional kw:keyword) (~datum x:) arg:expr)))
+
+  (define-splicing-syntax-class optional-xarg
+    #:description "an optional keyword followed by an expression"
+    (pattern (~seq (~optional kw:keyword) arg:expr)))
+
   (define-splicing-syntax-class args
     (pattern (~or read:optional-read-kwarg
                   write:write-arg
                   read-write:optional-read-write-kwarg
                   external:optional-external-kwarg
+                  expression:optional-expression-kwarg
                   (~seq kw:keyword ((~datum  r:) ~! r-arg:plain-arg  r-kwarg:optional-kwarg  ...))
                   (~seq            ((~datum  r:) ~!                  r-kwarg:optional-kwarg  ...+))
                   (~seq            ((~datum  w:) ~! w-arg:plain-arg                          ...+))
@@ -65,8 +74,14 @@
                   (~seq            ((~datum  e:) ~!                  e-kwarg:optional-kwarg  ...+))
                   (~seq kw:keyword ((~datum rw:) ~! rw-arg:plain-arg rw-kwarg:optional-kwarg ...))
                   (~seq            ((~datum rw:) ~!                  rw-kwarg:optional-kwarg ...+))
-                  (~seq (~optional kw:keyword) (any          (~fail (string-append "illegal head specifier" )) ~! ignore ...  ))
+                  (~seq kw:keyword ((~datum  x:) ~! x-arg:plain-arg  x-kwarg:optional-xarg ...))
+                  (~seq            ((~datum  x:) ~!                  x-kwarg:optional-xarg ...+))
+                  ;; Explicit illegal case
+                  (~seq (~optional kw:keyword) (any (~fail (string-append "illegal head specifier" )) ~! ignore ...))
                   )))
+
+  (define (remove-x: lst)
+    (filter (lambda (x) (match (syntax-e x) ('x: #f) (_ #t))) lst))
 
   (define (false-merge . lsts)
     (apply map (lambda x (filter identity x)) lsts)))
@@ -92,6 +107,7 @@
                        (attribute arguments.read)
                        (attribute arguments.read-write)
                        (attribute arguments.external)
+                       (attribute arguments.expression)
                        (attribute arguments.kw)
                        (attribute arguments.r-arg)
                        (attribute arguments.r-kwarg)
@@ -99,6 +115,8 @@
                        (attribute arguments.rw-kwarg)
                        (attribute arguments.e-arg)
                        (attribute arguments.e-kwarg)
+                       (attribute arguments.x-arg)
+                       (attribute arguments.x-kwarg)
                        ))
    #:with ((writes+ ...) ...)
      (map flatten (map false-merge
@@ -113,12 +131,12 @@
 
    #:with ((reads+ext+2 ...) ...) (map syntax-flatten (attribute reads+ext))
    #:with ((reads+ext+3 ...) ...) (map (remove-:-prefixes "e|r|rw") (attribute reads+ext+2))
+   #:with ((reads+ext+4 ...) ...) (map remove-x: (attribute reads+ext+3))
 
    #:with ((writes+2 ...) ...) (map syntax-flatten (attribute writes+ ))
    #:with ((writes+3 ...) ...) (map (remove-:-prefixes "w|rw") (attribute writes+2))
    #:with ((writes+4 ...) ...) (map remove-keywords (attribute writes+3))
 
-  ; (writeln (attribute reads+ext))
    #'(~>
          initial
          (empty-handle (reads+ ...) (writes+ ...)
@@ -127,7 +145,7 @@
               table)
            (lambda (x)
              (let ([reads+4 (hash-ref-dot x reads+4 #f)] ...)
-               (let-values* ([(writes+4 ...) (call reads+ext+3 ...)])
+               (let-values* ([(writes+4 ...) (call reads+ext+4 ...)])
                  (~>
                    x
                    (hash-set-dot _ writes+4 writes+4) ...
