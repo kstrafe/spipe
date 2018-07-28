@@ -9,56 +9,92 @@
                                   [sandbox-memory-limit 500])
                      (make-evaluator 'racket '(require spipe))))
 
-@title{spipe}
+@title[#:tag "spipe"]{Super Pipe}
 @author{Kevin R. Stravers}
 
 @defmodule[spipe]
 
-Spipe is a syntax transformer that takes care of hash-table accesses and updates. Spipe threads state (a hash-table) from top to bottom using the provided @italic{transformations}. Each @italic{transformation} specifies which element will be read and written to in the hash-table.
+The @racket[spipe] form implements @racket[hash]-based pipeline programming. @racket[spipe] functionally threads state (a hash-table) through provided @italic{transformation}s. Each @italic{transformation} specifies which elements to access and update in the hash table.
 
-@defform[(spipe table-expr transformer ...)
-  #:grammar [(transformation (procedure transform ...))
-             (transform (code:line)
-                        read
-                        write
-                        read-write
-                        external
-                        expression
+@defform/subs[(spipe hash transformation ...)
+              ([transformation (call transform ...)])
+              #:contracts ([hash hash?])]{
+  Uses the state @racket[hash] and applies the @racket[transformation]s to it from left-to-right. Each @racket[transformation] may introduce new entries in the state, which will be visible for the next @racket[transformation]. @racket[hash] is an arbitrary expression resulting in @racket[hash?].
 
-                        multi-read
-                        multi-write
-                        multi-read-write
-                        multi-external
-                        multi-expression
-                        )
-             (read (code:line r:accessor) (code:line keyword r:accessor))
-             (write w:accessor)
-             (read-write (code:line rw:accessor) (code:line keyword rw:accessor))
-             (external (code:line e:accessor) (code:line keyword e:accessor))
-             (expression (code:line x: expr) (code:line keyword x: expr))
+  The grammar of @racket[transform] follows, where non-italicized identifiers are recognized symbolically.
 
-             (multi-read (code:line (r: tagless ...+)) (code:line keyword (r: id tagless ...)))
-             (multi-write (code:line (w: id ...+)))
-             (multi-read-write (code:line (rw: tagless ...+)) (code:line keyword (rw: id tagless ...)))
-             (multi-external (code:line (e: tagless ...+)) (code:line keyword (e: id tagless ...)))
-             (multi-expression (code:line (x: kw-exprs ...+)) (code:line keyword (x: id kw-exprs ...)))
 
-             (tagless (code:line accessor) (code:line keyword accessor))
-             (kw-exprs (code:line expr) (code:line keyword expr))
-             (accessor (code:line id) id.accessor)
-             ]
-  #:contracts ([table-expr hash?]
-               [procedure procedure?])]{
-  Each accessor can be provided in dot-notation (a.b.c and so on), where each dot denotes a nested hash table. If an entry does not exist for reads, @racket[#f] is sent to the function, but no entry is made in the hash-table for reads.
+@racketgrammar*[
+  #:literals (r: w: rw: e: x:)
+  [transform (code:line read)
+             write
+             read-write
+             external
+             expression
 
-  Reads and writes are order-sensitive. Reads (anything with r: rw: e: and x:) are sent to the @racket[procedure] in the order they are specified. Any keywords between the reads also follows that order. The writes bind to the returned @racket[(values)] in the order the writes are specified.
+             multi-read
+             multi-write
+             multi-read-write
+             multi-external
+             multi-expression]
+  [read (code:line r:accessor) (code:line keyword r:accessor)]
+  [write w:accessor]
+  [read-write (code:line accessor) (code:line rw:accessor) (code:line keyword rw:accessor)]
+  [external (code:line e:accessor) (code:line keyword e:accessor)]
+  [expression (code:line x: expr) (code:line keyword x: expr)]
 
-  Accessors without a tag (r: w: rw: e: and x:) are automatically rw:.
+  [multi-read (code:line (r: tagless ...+)) (code:line keyword (r: id tagless ...))]
+  [multi-write (code:line (w: id ...+))]
+  [multi-read-write (code:line (rw: tagless ...+)) (code:line keyword (rw: id tagless ...))]
+  [multi-external (code:line (e: tagless ...+)) (code:line keyword (e: id tagless ...))]
+  [multi-expression (code:line (x: kw-exprs ...+)) (code:line keyword (x: id kw-exprs ...))]
 
-  It's also possible to not specify any arguments in which case the hash-table will simply pass through the function. This may be useful when side-effects are desired. In this case the return value of the associated @italic{transform} is ignored. Only having w: accessors is possible too, allowing one to directly assign values to the hash-table.
+  [tagless (code:line accessor) (code:line keyword accessor)]
+  [kw-exprs (code:line expr) (code:line keyword expr)]
+  [accessor (code:line id) id.accessor]
+]
 
-  Note that procedure can also be a syntax transformer but this is rather unconventional. Only the read and keyword arguments will be seen by this transformation, which are provided in their original syntax form with accessor tags removed.
-}
+More specifically, the following rules apply:
+
+@itemize[
+
+         @item{@racket[r:accessor] as well as their @racket[w:], @racket[rw:], @racket[e:], and @racket[x:] counterparts are intended to be prepended to the identifier in order to match.
+            @examples[#:eval evaluator
+              (spipe (hash) (identity r:test-read w:test-write))
+            ]
+            @racket[spipe] looks for these prefixes to determine how to order arguments and store values inside the hash-table.
+         }
+
+         @item{@racket[accessor] is any dot-separated identifier
+            @examples[#:eval evaluator
+              (spipe (hash) (identity r:a.b.c w:d.e.f))
+            ]
+            Each dot denotes a child hash-table. If a write accesses a non-existent variable then a hash-table will
+            be created, but if the variable already exists and is not @racket[hash?] then an exception is thrown.
+            @examples[#:eval evaluator
+              (eval:error (spipe (hash) ((const 123) w:a) (identity x: 1 w:a.b)))
+            ]
+         }
+
+         @item{An @racket[id] in place of transform implies rw:
+            @examples[#:eval evaluator
+              (spipe (hash) ((const 1) variable))
+            ]
+         }
+
+         @item{If there are multiple similar accesses (i.e.: @racket[r:a r:b ...]) then one can group these under @racket[(r:)]:
+            @examples[#:eval evaluator
+              (spipe (hash) (values (x: 1 2 3) (w: a b c)))
+            ]
+         }
+      ]
+
+  Reads and writes are order-sensitive. Reads (anything with r: rw: e: and x:) are sent to the @racket[call] in the order they are specified. Any keywords also follow that order. The writes bind to the returned values in the order the writes are specified.
+
+  It's also possible to not specify any arguments in which case the hash-table will simply pass through the function. This may be useful when side-effects are desired. In this case the return value of @racket[call] is ignored. Only having w: accessors is possible too, allowing one to directly assign values to the hash-table.
+
+  Note that @racket[call] can also be a syntax transformer. Only the read and keyword arguments will be seen by this transformation, which are provided in their original syntax form with accessor tags removed but with the same context and source location. Using a syntax transformer without any arguments sends it a single argument called @italic{table}, containing the entire state.
+}}
 
 @section{Examples}
 
