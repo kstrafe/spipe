@@ -61,6 +61,10 @@
     #:description "an optional keyword followed by an expression"
     (pattern (~seq (~optional kw:keyword) arg:expr)))
 
+  (define-splicing-syntax-class xarg
+    #:description "an expression"
+    (pattern arg:expr))
+
   (define-splicing-syntax-class args
     (pattern (~or read:optional-read-kwarg
                   write:write-arg
@@ -74,7 +78,7 @@
                   (~seq            ((~datum  e:) ~!                  e-kwarg:optional-kwarg  ...+))
                   (~seq kw:keyword ((~datum rw:) ~! rw-arg:plain-arg rw-kwarg:optional-kwarg ...))
                   (~seq            ((~datum rw:) ~!                  rw-kwarg:optional-kwarg ...+))
-                  (~seq kw:keyword ((~datum  x:) ~! x-arg:plain-arg  x-kwarg:optional-xarg ...))
+                  (~seq kw:keyword ((~datum  x:) ~! x-arg:xarg       x-kwarg:optional-xarg ...))
                   (~seq            ((~datum  x:) ~!                  x-kwarg:optional-xarg ...+))
                   ;; Explicit illegal case
                   (~seq (~optional kw:keyword) (any (~fail (string-append "illegal head specifier" )) ~! ignore ...))
@@ -183,6 +187,9 @@
   (test-equal? "x: 2"         (spipe (hash) (- x: 1 x: 2 w:a))           (hash 'a -1))
   (test-equal? "(x: 1)"       (spipe (hash) (- (x: 1  2) w:a))           (hash 'a -1))
   (test-equal? "(x: 2)"       (spipe (hash) (- (x: 2  1) w:a))           (hash 'a 1))
+  (test-equal? "#:k (x: 3)"   (let ([kwf (λ (#:k k) k)])
+                                (spipe (hash)
+                                       (kwf #:k (x: (+ 2 1)) w:a)))      (hash 'a 3))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
