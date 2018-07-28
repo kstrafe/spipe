@@ -48,7 +48,7 @@
                            "identifier is not a proper read-write form \"(rw:)?[^:]+\", e.g.: \"rw:name\" or \"name\""))
 
   (define-splicing-syntax-class optional-external-kwarg
-    #:description "an identifier or a keyword followed by an (optionally \"e:\"-prefixed) identifier"
+    #:description "an identifier or a keyword followed by an \"e:\"-prefixed identifier"
     (pattern (~seq (~optional kw:keyword) arg:id)
              #:fail-unless (regexp-match? #px"^e:[^:]+$" (id-attribute->string arg))
                            "identifier is not a proper read-write form \"e:[^:]+\", e.g.: \"e:name\""))
