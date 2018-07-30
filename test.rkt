@@ -7,8 +7,8 @@
          syntax/parse/define
          threading)
 
-(define-syntax-parser set2 ([_ k n]                       #'(hash-set 'k k)))
-(define-syntax-parser get2 ([_ w:keyword n] #'w) ([_ k n] #'(hash-ref n 'k)))
+(define-syntax-parser spipe-set ([_ k n]                       #'(hash-set 'k  k)))
+(define-syntax-parser spipe-get ([_ w:keyword n] #'w) ([_ k n] #'(hash-ref  n 'k)))
 
 (define-syntax-parser spipe*
   ([self initial:expr term:id     rest ...]
@@ -16,72 +16,37 @@
   ([_ initial:expr (kw:keyword term ...+)]
    #'(access #:surround [(state) initial]
              #:result ~>
-             #:get get2
-             #:set set2
+             #:get spipe-get
+             #:set spipe-set
              kw term ...))
   ([self initial:expr (kw:keyword term ...+) rest ...+]
    #'(access #:surround [(state) (self initial rest ...)]
              #:result ~>
-             #:get get2
-             #:set set2
+             #:get spipe-get
+             #:set spipe-set
              kw term ...))
   ([self initial:expr (term ...+) rest ...]
    #'(self initial (#:x term ...) rest ...)))
+
 (define-syntax-parser spipe
   ([_ initial:expr xform ...+]
    #:with (rev-xform ...+) (reverse (attribute xform))
    #'(spipe* initial rev-xform ...)))
-  ; THIS WORKED as single monolith
-  ; ([_ initial:expr
-  ;     (~and clause
-  ;           (~or
-  ;             (term ...)
-  ;             identifier:id)
-  ;           ) ...]
-  ;  #:with (this ...) (last (attribute term))
-  ;  ;; Drop the last syntax element
-  ;  ;; E.g.: (#'a #'b #'c) -> (#'a #'b)
-  ;  #:with (that ...) (take (attribute clause) (sub1 (length (attribute clause))))
-  ;  ;; Prepend #:x if no other keyword is in its place
-  ;  ;; E.g.: (#'f #'x ...) -> (#'#:x #'f #'x ...)
-  ;  #:with (this* ...) (if (keyword? (syntax-e (car (attribute this))))
-  ;                       (attribute this)
-  ;                       (cons #'#:x (attribute this)))
-  ;  (if (empty? (attribute that))
-  ;    #'(access #:surround [(x) initial]
-  ;              #:result ~>
-  ;              #:get get2
-  ;              #:set set2
-  ;              this* ...
-  ;              )
-  ;    #'(access #:surround [(x) (spipe initial that ...)]
-  ;              #:result ~>
-  ;              #:get get2
-  ;              #:set set2
-  ;              this* ...))
-  ;  ))
 
 (define (f) 1)
-(define (g a) a)
+(define (g a) (writeln `(it works ,a)) a)
 (define a 10)
 (define (k a) (writeln a))
 (define (d) (writeln 'sekai))
+(define (kwt #:r r #:w w) (* r w))
 
-; (access #:x f)
 (spipe (hash)
-       (f #:w x)
-       (add1 #:rw x)
-       (g a)
+       (f              #:w  x)
+       (add1           #:rw x)
+       (g (+ 1 2 a) #:w test)
+       (kwt #:x #:r (+ 1 2 3) #:x #:w (- 1 2 4) #:w ZE)
        d
        )
-
-; (spipe (hash)
-;        f
-;        (#:x f #:w a)
-;        ; (g a #:w c)
-;        ; (f #:w b)
-;        ; (#:x add1 #:rw b)
-;        )
 
 (define-syntax (s a)
   (parameterize ([print-syntax-width +inf.0])
@@ -98,16 +63,3 @@
              (add1 #:rw x)
              (+ 3 #:rw x)
              ))
-
-; (define x 3129)
-; (require racket/hash threading)
-; (access
-;   #:surround [(x) (hash 'a 100)]
-;              [(o) (hash 'b 312)]
-;   ; #:result ~>
-;   #:get get2
-;   #:set set2
-;   #:x identity #:r a #:w c
-;   )
-
-; (access #:result (lambda (f) (add1 f)) #:x identity 1 #:w b)

@@ -25,10 +25,10 @@
                                  (~seq kw:maybe-kw  x:expr  ...+)))
                    ))
                )
-             #:attr (read*  1) (unify (attribute read)
-                                      (attribute read/write))
-             #:attr (write* 1) (unify (attribute w)
-                                      (attribute rw))
+             #:attr (read*  1) (unify (attr read)
+                                      (attr read/write))
+             #:attr (write* 1) (unify (attr w)
+                                      (attr rw))
              ))
 
   (define (expand-accessors transformer lst n)
@@ -40,23 +40,11 @@
                x)
              empty))
          lst))
-
   (define-syntax attr (make-rename-transformer #'attribute)))
 
 (define-syntax-parser get* ([_ kw:keyword] #'kw) ([_ n:id]   #'n))
 (define-syntax-parser set* ([_ i:id n ...]       #'i))
 (define-syntax-parser xet* ([_ kw:keyword a ...] #'kw) ([_ e:expr a ...] #'e))
-
-
-;; (access #:get r #:set w #:xet x #:surround [(n) b]
-;;   #:result res
-;;   #:x f #:r a b c #:w d e f #:rw g h i #:x (+ 1 2))
-;; ->
-;; (let-values ([(n) b]
-;;              [(d e f) ((x f n) (r a n) (r b n) (r c n) (r g n) (r h n) (r i n) (x (+ 1 2) n))])
-;;   (res n (w d) (w e) (w f))
-
-;; A let*-values that puts empty bindings into a void binding
 
 (require syntax/parse/define (for-syntax racket/list))
 ;; A permissive let*-values that allows ignore bindings
@@ -69,12 +57,12 @@
         (let*-values* (rest ...)
           f ...)))
   )
-; (let*-values* ([() (writeln 'mia-amigo)]
-;                [(a) (+ 1 2)]
-;                [() (writeln 'test)]
-;                [(b) (- 1 2)])
-;               (values a b))
 
+;; What does this do to justify its existence?
+;; 1. Calls a function using all #:r, #:rw, and #:x inputs
+;; 2. Stores results in #:w inputs
+;; 3. Macro-transforms all #:r, #:w, (including #:rw), and #:x
+;; 4. Allows arbitrary macros to transform the meaning
 (define-syntax-parser access
   ([_ (~or
         (~optional (~seq #:get getter) #:defaults ([getter #'get*])
@@ -96,40 +84,10 @@
    #:with ((w ...)  ...) (expand-accessors (attr setter) (attr accessor.write*)      (attr n))
    #:with ((x ...)  ...) (expand-accessors (attr xetter) (attr accessor.expressions) (attr n))
    #:with ((rx ...) ...) (map append (attr r) (attr x))
-   (parameterize ([print-syntax-width +inf.0])
-     ; (pretty-print (attr r))
-     ; (pretty-print (attr w))
-     ; (pretty-print (attr x))
-     ; (pretty-print `(n: ,(attr n)))
-     ; (pretty-print `(f: ,(attr f)))
-     ; (pretty-print `(s: ,(attr surround)))
-     ; (pretty-print `(acc.write* ,(attribute accessor.write*)))
-     ; (pretty-print `(acc.write*+ ,(not (empty? (flatten (attribute accessor.write*))))))
-     (void)
-     )
+   (parameterize ([print-syntax-width +inf.0]) (void))
    #'(let*-values* (surround ...
                     [(accessor.write* ... ...) (rx ... ...)])
       (result n ... ... w ... ...))
-   ;; THIS WORKED
-   ; (cond
-   ;   ([attribute surround]
-   ;    (writeln 'first)
-   ;    (writeln `(surround ,(attribute surround)))
-   ;    (writeln `(acc.write ,(attribute accessor.write*)))
-   ;    (if (empty? (flatten (attribute accessor.write*)))
-   ;      #`(let*-values (surround ...)
-   ;                     (rx ... ...)
-   ;                     (result n ... ...))
-   ;      #`(let*-values (surround ... [(accessor.write* ... ...) (rx ... ...)])
-   ;                     (result n ... ... w ... ...))))
-   ;   ([not (empty? (flatten (attribute accessor.write*)))]
-   ;    (writeln 'second)
-   ;    #`(let-values  ([(accessor.write* ... ...) (rx ... ...)])
-   ;                   (result w ... ...)))
-   ;   (else
-   ;    (writeln 'third)
-   ;    #'(rx ... ...))
-   ;                 )
    ))
 
 (module+ test
