@@ -1,5 +1,7 @@
 #lang racket
 
+;; Provides a generic "accessor" function given accessor macros
+;; That is all very abstract, so please see the tests
 (provide access)
 
 (require (for-syntax racket/function racket/list racket/pretty racket/string racket/syntax)
@@ -47,7 +49,8 @@
 (define-syntax-parser xet* ([_ kw:keyword a ...] #'kw) ([_ e:expr a ...] #'e))
 
 (require syntax/parse/define (for-syntax racket/list))
-;; A permissive let*-values that allows ignore bindings
+;; A permissive let*-values that allows ignore bindings like (let*-values* ([() expr]) (void))
+;; will work fine, and expr is evaluated in the order it is supposed to
 (define-syntax-parser let*-values*
   ([_ () f:expr ...+] #'(begin f ...))
   ([_ ([() e:expr] rest:expr ...) f:expr ...+]
@@ -80,9 +83,9 @@
                    #:too-many "#:result has already been specified")
         ) ...
       accessor:term ...]
-   #:with ((r ...)  ...) (expand-accessors (attr getter) (attr accessor.read*)       (attr n))
-   #:with ((w ...)  ...) (expand-accessors (attr setter) (attr accessor.write*)      (attr n))
-   #:with ((x ...)  ...) (expand-accessors (attr xetter) (attr accessor.expressions) (attr n))
+   #:with ((r  ...) ...) (expand-accessors (attr getter) (attr accessor.read*)       (attr n))
+   #:with ((w  ...) ...) (expand-accessors (attr setter) (attr accessor.write*)      (attr n))
+   #:with ((x  ...) ...) (expand-accessors (attr xetter) (attr accessor.expressions) (attr n))
    #:with ((rx ...) ...) (map append (attr r) (attr x))
    (parameterize ([print-syntax-width +inf.0]) (void))
    #'(let*-values* (surround ...
@@ -96,7 +99,7 @@
     (access #:x identity (+ 1 2) #:w result)
     3)
   (check-equal? 
-    (access #:x identity (+ 1 2) #:w result)
+    (access #:x identity #:x (+ 1 2) #:w result)
     3)
   (check-equal? 
     (access #:x + (+ 1 2) 3 #:w result)

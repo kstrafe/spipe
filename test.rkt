@@ -7,8 +7,12 @@
          syntax/parse/define
          threading)
 
-(define-syntax-parser spipe-set ([_ k n]                       #'(hash-set 'k  k)))
-(define-syntax-parser spipe-get ([_ w:keyword n] #'w) ([_ k n] #'(hash-ref  n 'k)))
+(define-syntax-parser spipe-set
+  ([_ k n] #'(hash-set 'k k)))
+(define-syntax-parser spipe-get
+  ([_ () n] #'n)
+  ([_ w:keyword n] #'w)
+  ([_ k n] #'(hash-ref  n 'k)))
 
 (define-syntax-parser spipe*
   ([self initial:expr term:id     rest ...]
@@ -33,20 +37,24 @@
    #:with (rev-xform ...+) (reverse (attribute xform))
    #'(spipe* initial rev-xform ...)))
 
-(define (f) 1)
-(define (g a) (writeln `(it works ,a)) a)
-(define a 10)
-(define (k a) (writeln a))
-(define (d) (writeln 'sekai))
-(define (kwt #:r r #:w w) (* r w))
+; (define (f) 1)
+; (define (g a) (writeln `(it works ,a)) a)
+; (define a 10)
+; (define (k a) (writeln a))
+; (define (d k) (writeln `(sekai ,k)))
+; (define (kwt #:r r #:w w) (* r w))
 
-(spipe (hash)
-       (f              #:w  x)
-       (add1           #:rw x)
-       (g (+ 1 2 a) #:w test)
-       (kwt #:x #:r (+ 1 2 3) #:x #:w (- 1 2 4) #:w ZE)
-       d
-       )
+(provide spipe)
+
+; (spipe (hash)
+;        (f              #:w  x)
+;        (add1           #:rw x)
+;        (g (+ 1 2 a) #:w test)
+;        (kwt #:x #:r (+ 1 2 3) #:x #:w (- 1 2 4) #:w ZE)
+;        (d #:r ())
+;        ((lambda (x) (writeln x)) 31)
+;        )
+
 
 (define-syntax (s a)
   (parameterize ([print-syntax-width +inf.0])
@@ -58,8 +66,9 @@
   #'(void))
 
 
-(s (spipe (hash)
-             (f #:w x)
-             (add1 #:rw x)
-             (+ 3 #:rw x)
-             ))
+; (s (spipe (hash)
+;              (f #:w x)
+;              (add1 #:rw x)
+;              (+ 3 #:rw x)
+;              (kwt #:x #:r (+ 1 2 3) #:x #:w (- 1 2 4) #:w ZE)
+;              ))

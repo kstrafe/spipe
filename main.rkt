@@ -3,6 +3,13 @@
 (provide spipe)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; TODO
+;; 1. Remove dependency on lens and/or threading
+;; 2. Improve documentation - Better examples?
+;; 3. Allow for (spipe (hash) writeln)
+;; 4. Implement head parsing i.e.: (spipe (hash 'a write) (r:a x: 10))
+;; 5. Allow specification of custom separators (e.g. <> instead of :, or & instead of .)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require racket/function syntax/parse/define
          lens threading
@@ -140,6 +147,8 @@
    #:with ((writes+2 ...) ...) (map syntax-flatten (attribute writes+ ))
    #:with ((writes+3 ...) ...) (map (remove-:-prefixes "w|rw") (attribute writes+2))
    #:with ((writes+4 ...) ...) (map remove-keywords (attribute writes+3))
+
+   (writeln (attribute arguments.x-arg.arg))
 
    #'(~>
          initial
