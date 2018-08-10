@@ -3,14 +3,24 @@
 (provide H~>)
 
 (require syntax/parse/define
-         (for-syntax racket/base racket/list racket/syntax)
-         threading)
+         (for-syntax racket/base racket/list racket/string racket/syntax)
+         nested-hash threading)
 
 (begin-for-syntax
   (define-syntax-class kwid
     (pattern
       (~or id:id
            kw:keyword))))
+
+(define-syntax-parser nested-hash-ref*
+  ([_ prev:expr ((~literal quote) access:id) default:expr]
+   #:with (access* ...) (map string->symbol (string-split (symbol->string (syntax-e (attribute access))) "."))
+   #'(nested-hash-ref prev 'access* ... #:default default)))
+
+(define-syntax-parser nested-hash-set*
+  ([_ prev:expr ((~literal quote) access:id) value:expr]
+   #:with (access* ...) (map string->symbol (string-split (symbol->string (syntax-e (attribute access))) "."))
+   #'(nested-hash-set prev 'access* ... value)))
 
 (define-syntax-parser hash-expand
   ([_ prev:expr transform:id]
@@ -25,27 +35,27 @@
      (map (lambda (stx) (format-id stx "~a*" stx #:source stx))
           (attribute read-writes-id))
    #'(let* ([prev* prev]
-            [read-writes-id (hash-ref prev* 'read-writes-id #f)] ...)
+            [read-writes-id (nested-hash-ref* prev* 'read-writes-id #f)] ...)
         (let-values ([(read-writes-id* ...) (transform read-writes ...)])
           (~>
             prev*
-            (hash-set 'read-writes-id read-writes-id*) ...)
+            (nested-hash-set* 'read-writes-id read-writes-id*) ...)
       )))
   ([_ prev:expr (transform:expr (reads:kwid ...) (~optional ()))]
    #:with (reads-id ...) (filter (lambda (x) x) (attribute reads.id))
    #'(let* ([prev* prev]
-            [reads-id (hash-ref prev* 'reads-id #f)] ...)
+            [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
         (begin (transform reads ...)
                prev*))
    )
   ([_ prev:expr (transform:expr (reads:kwid ...) (writes:id ...))]
    #:with (reads-id ...) (filter (lambda (x) x) (attribute reads.id))
    #'(let* ([prev* prev]
-            [reads-id (hash-ref prev* 'reads-id #f)] ...)
+            [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
         (let-values ([(writes ...) (transform reads ...)])
           (~>
             prev*
-            (hash-set 'writes writes) ...)))
+            (nested-hash-set* 'writes writes) ...)))
    )
   )
 

@@ -66,4 +66,18 @@ The @racket[H~>] form implements @racket[hash]-based pipeline programming. @rack
       (string-append (hello world) (hello-world))
       (displayln     (hello-world)))
   ]
+@section{Nested Attributes}
+
+Sometimes it's useful to access nested hash tables. @racket[H~>] provides functionality for this by parsing any identifier containing dots. Each dot represents a sub-table entry.
+
+  @examples[#:eval evaluator #:label "Example of nested attributes:"
+    (H~>
+      (hash)
+      ((const 'value) () (a.b.c.target))
+      (write (a.b))
+      )
+  ]
+
+For writes, if a subtable does not exist, it is created. However, if such creation would overwrite already-existing values, an error is thrown.
+For reads, non-existing subtables return @racket[#f].
 }
