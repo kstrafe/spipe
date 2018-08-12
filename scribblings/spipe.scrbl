@@ -21,7 +21,7 @@ The @racket[H~>] form implements @racket[hash]-based pipeline programming. @rack
          #:contracts ([table hash?])]{
   Uses the state @racket[table] and applies the @racket[transformation]s to it from left-to-right. Each @racket[transformation] may introduce new entries in the state, which will be visible for the next @racket[transformation]. @racket[table] is an arbitrary expression resulting in @racket[hash?].
 
-  The grammar of @racket[transform] follows, where non-italicized identifiers are recognized symbolically.
+  The grammar of @racket[transformtion] follows, where non-italicized identifiers are recognized symbolically.
 
   @racketgrammar*[
     #:literals (*)
