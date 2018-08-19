@@ -81,3 +81,15 @@ Sometimes it's useful to access nested hash tables. @racket[H~>] provides functi
 For writes, if a subtable does not exist, it is created. However, if such creation would overwrite already-existing values, an error is thrown.
 For reads, non-existing subtables return @racket[#f].
 }
+
+@section{Nested State}
+It may not always be ergonomic to refer to the full path of the state, so to allow nesting of substate access we can use @racket[H~>] inside itself:
+
+  @examples[#:eval evaluator #:label "Example of nested substate:"
+    (H~> (hash)
+         ((const 'value) () (a.b.c.target))
+         (H~> a.b
+              (symbol->string c.target)))
+  ]
+
+This is a special form and does not follow the conventional @racket[(F (in) (out))] rules.

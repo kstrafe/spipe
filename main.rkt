@@ -23,6 +23,13 @@
    #'(nested-hash-set prev 'access* ... value)))
 
 (define-syntax-parser hash-expand
+  ([_ prev:expr ((~literal H~>) substate:id transformation:expr ...)]
+   #'(let ([state prev])
+       (H~> state
+         ((lambda (substate)
+           (H~> substate
+             transformation ...)
+           ) substate))))
   ([_ prev:expr transform:id]
    #'(let ([state prev]) (transform state) state))
   ([_ prev:expr (transform:expr)]
