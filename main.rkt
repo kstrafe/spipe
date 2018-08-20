@@ -23,6 +23,10 @@
    #'(nested-hash-set prev 'access* ... value)))
 
 (define-syntax-parser hash-expand
+  ([_ prev:expr ((~datum context) (substate:id ...) (transform:expr rw-1 ... (reads ...) rw-2 ... (writes ...) rw-3 ...) ...)]
+   #'(let ([state prev])
+       (H~> state
+            (transform rw-1 ... (substate ... reads ...) rw-2 ... (writes ...) rw-3 ...) ...)))
   ([_ prev:expr ((~datum context) substate:id (transform:expr rw-1 ... (reads ...) rw-2 ... (writes ...) rw-3 ...) ...)]
    #'(let ([state prev])
        (H~> state
