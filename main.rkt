@@ -23,6 +23,10 @@
    #'(nested-hash-set prev 'access* ... value)))
 
 (define-syntax-parser hash-expand
+  ([_ prev:expr ((~datum context) substate:id (transform:expr rw-1 ... (reads ...) rw-2 ... (writes ...) rw-3 ...) ...)]
+   #'(let ([state prev])
+       (H~> state
+            (transform rw-1 ... (substate reads ...) rw-2 ... (writes ...) rw-3 ...) ...)))
   ([_ prev:expr ((~literal H~>) substate:id transformation:expr ...)]
    #'(let ([state prev])
        (H~> state
@@ -63,6 +67,39 @@
           (~>
             prev*
             (nested-hash-set* 'writes writes) ...)))
+   )
+  ([_ prev:expr (transform:expr rw-1:kwid ... (reads:kwid ...) rw-2:kwid ...)]
+     #:with (reads-id ...) (filter (lambda (x) x)
+                                   (append (attribute rw-1.id)
+                                           (attribute reads.id)
+                                           (attribute rw-2.id)))
+     #:with (writes-id ...) (filter (lambda (x) x)
+                                    (append (attribute rw-1.id)
+                                            (attribute rw-2.id)))
+     #'(let* ([prev* prev]
+              [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
+          (let-values ([(writes-id ...) (transform rw-1 ... reads ... rw-2 ...)])
+            (~>
+              prev*
+              (nested-hash-set* 'writes-id writes-id) ...)))
+   )
+  ([_ prev:expr (transform:expr rw-1:kwid ... (reads:kwid ...) rw-2:kwid ... (writes:id ...) rw-3:kwid ...)]
+     #:with (reads-id ...) (filter (lambda (x) x)
+                                   (append (attribute rw-1.id)
+                                           (attribute reads.id)
+                                           (attribute rw-2.id)
+                                           (attribute rw-3.id)))
+     #:with (writes-id ...) (filter (lambda (x) x)
+                                    (append (attribute rw-1.id)
+                                            (attribute rw-2.id)
+                                            (attribute writes)
+                                            (attribute rw-3.id)))
+     #'(let* ([prev* prev]
+              [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
+          (let-values ([(writes-id ...) (transform rw-1 ... reads ... rw-2 ... rw-3 ...)])
+            (~>
+              prev*
+              (nested-hash-set* 'writes-id writes-id) ...)))
    )
   )
 
