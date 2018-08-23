@@ -10,16 +10,18 @@
   (define-syntax-class kwid
     (pattern
       (~or id:id
-           kw:keyword))))
+           kw:keyword)))
+  (define (dotted->list-of-ids identifier)
+    (map string->symbol (string-split (symbol->string (syntax-e identifier)) "."))))
 
 (define-syntax-parser nested-hash-ref*
   ([_ prev:expr ((~literal quote) access:id) default:expr]
-   #:with (access* ...) (map string->symbol (string-split (symbol->string (syntax-e (attribute access))) "."))
+   #:with (access* ...) (dotted->list-of-ids (attribute access))
    #'(nested-hash-ref prev 'access* ... #:default default)))
 
 (define-syntax-parser nested-hash-set*
   ([_ prev:expr ((~literal quote) access:id) value:expr]
-   #:with (access* ...) (map string->symbol (string-split (symbol->string (syntax-e (attribute access))) "."))
+   #:with (access* ...) (dotted->list-of-ids (attribute access))
    #'(nested-hash-set prev 'access* ... value)))
 
 (define-syntax-parser hash-expand
