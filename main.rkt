@@ -24,57 +24,46 @@
    #:with (access* ...) (dotted->list-of-ids (attribute access))
    #'(nested-hash-set prev 'access* ... value)))
 
+(define-syntax-parser let-values/empty
+  ([_ ([() expr:expr]) body:expr ...+]
+   #'(begin expr body ...))
+  ([_ ([bindings expr:expr]) body:expr ...+]
+   #'(let-values ([bindings expr]) body ...)))
+
 (define-syntax-parser hash-expand
-  ([_ prev:expr ((~datum context) (substate:id ...) (transform:expr rw-1 ... (reads ...) rw-2 ... (writes ...) rw-3 ...) ...)]
+  ([_ prev:expr (context:id ...) ((~datum context) (substate:id ...) transformation:expr ...)]
+   #:with (transform/context ...) (map (lambda (x) #`(hash-expand (substate ... context ...) #,x))
+                                       (attribute transformation))
    #'(let ([state prev])
-       (H~> state
-            (transform rw-1 ... (substate ... reads ...) rw-2 ... (writes ...) rw-3 ...) ...)))
-  ([_ prev:expr ((~datum context) substate:id (transform:expr rw-1 ... (reads ...) rw-2 ... (writes ...) rw-3 ...) ...)]
-   #'(let ([state prev])
-       (H~> state
-            (transform rw-1 ... (substate reads ...) rw-2 ... (writes ...) rw-3 ...) ...)))
-  ([_ prev:expr ((~literal H~>) substate:id transformation:expr ...)]
+       (~> state
+            transform/context ...)))
+  ([_ prev:expr (context:id ...) ((~literal H~>) substate:id transformation:expr ...)]
    #'(let ([state prev])
        (H~> state
          ((lambda (substate)
            (H~> substate
              transformation ...)
            ) substate))))
-  ([_ prev:expr transform:id]
+  ([_ prev:expr (context:id ...) transform:id]
    #'(let ([state prev]) (transform state) state))
-  ([_ prev:expr (transform:expr)]
+  ([_ prev:expr (context:id ...) (transform:expr)]
    #'(let ([state prev]) (transform state) state))
-  ([_ prev:expr (transform:expr (~datum *))]
+  ([_ prev:expr (context:id ...) (transform:expr (~datum *))]
    #'(let ([state prev]) (transform state)))
-  ([_ prev:expr (transform:expr read-writes:kwid ...+)]
-   #:with (read-writes-id ...) (filter (lambda (x) x) (attribute read-writes.id))
-   #:with (read-writes-id* ...)
+  ([_ prev:expr (context:id ...) (transform:expr rw-1:kwid ...+)]
+   #:with (rw-1-id ...) (filter (lambda (x) x) (attribute rw-1.id))
+   #:with (rw-1-id* ...)
      (map (lambda (stx) (format-id stx "~a*" stx #:source stx))
-          (attribute read-writes-id))
+          (attribute rw-1-id))
    #'(let* ([prev* prev]
-            [read-writes-id (nested-hash-ref* prev* 'read-writes-id #f)] ...)
-        (let-values ([(read-writes-id* ...) (transform read-writes ...)])
+            [rw-1-id (nested-hash-ref* prev* 'rw-1-id #f)] ...
+            [context (nested-hash-ref* prev* 'context #f)] ...)
+        (let-values/empty ([(rw-1-id* ...) (transform context ... rw-1 ...)])
           (~>
             prev*
-            (nested-hash-set* 'read-writes-id read-writes-id*) ...)
+            (nested-hash-set* 'rw-1-id rw-1-id*) ...)
       )))
-  ([_ prev:expr (transform:expr (reads:kwid ...) (~optional ()))]
-   #:with (reads-id ...) (filter (lambda (x) x) (attribute reads.id))
-   #'(let* ([prev* prev]
-            [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
-        (begin (transform reads ...)
-               prev*))
-   )
-  ([_ prev:expr (transform:expr (reads:kwid ...) (writes:id ...))]
-   #:with (reads-id ...) (filter (lambda (x) x) (attribute reads.id))
-   #'(let* ([prev* prev]
-            [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
-        (let-values ([(writes ...) (transform reads ...)])
-          (~>
-            prev*
-            (nested-hash-set* 'writes writes) ...)))
-   )
-  ([_ prev:expr (transform:expr rw-1:kwid ... (reads:kwid ...) rw-2:kwid ...)]
+  ([_ prev:expr (context:id ...) (transform:expr rw-1:kwid ... (reads:kwid ...) rw-2:kwid ...)]
      #:with (reads-id ...) (filter (lambda (x) x)
                                    (append (attribute rw-1.id)
                                            (attribute reads.id)
@@ -83,13 +72,14 @@
                                     (append (attribute rw-1.id)
                                             (attribute rw-2.id)))
      #'(let* ([prev* prev]
-              [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
-          (let-values ([(writes-id ...) (transform rw-1 ... reads ... rw-2 ...)])
+              [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...
+              [context (nested-hash-ref* prev* 'context #f)] ...)
+          (let-values/empty ([(writes-id ...) (transform context ... rw-1 ... reads ... rw-2 ...)])
             (~>
               prev*
               (nested-hash-set* 'writes-id writes-id) ...)))
    )
-  ([_ prev:expr (transform:expr rw-1:kwid ... (reads:kwid ...) rw-2:kwid ... (writes:id ...) rw-3:kwid ...)]
+  ([_ prev:expr (context:id ...) (transform:expr rw-1:kwid ... (reads:kwid ...) rw-2:kwid ... (writes:id ...) rw-3:kwid ...)]
      #:with (reads-id ...) (filter (lambda (x) x)
                                    (append (attribute rw-1.id)
                                            (attribute reads.id)
@@ -101,8 +91,9 @@
                                             (attribute writes)
                                             (attribute rw-3.id)))
      #'(let* ([prev* prev]
-              [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...)
-          (let-values ([(writes-id ...) (transform rw-1 ... reads ... rw-2 ... rw-3 ...)])
+              [reads-id (nested-hash-ref* prev* 'reads-id #f)] ...
+              [context (nested-hash-ref* prev* 'context #f)] ...)
+          (let-values/empty ([(writes-id ...) (transform context ... rw-1 ... reads ... rw-2 ... rw-3 ...)])
             (~>
               prev*
               (nested-hash-set* 'writes-id writes-id) ...)))
@@ -113,5 +104,5 @@
   ([_ init:expr terms:expr ...]
    #:with (term/hash-expand ...)
      (for/list ([term (in-list (attribute terms))])
-       (quasisyntax/loc term (hash-expand #,term)))
+       (quasisyntax/loc term (hash-expand () #,term)))
    #'(~> init term/hash-expand  ...)))
