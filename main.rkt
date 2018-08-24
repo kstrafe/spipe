@@ -22,7 +22,7 @@
 (define-syntax-parser nested-hash-set*
   ([_ prev:expr ((~literal quote) access:id) value:expr]
    #:with (access* ...) (dotted->list-of-ids (attribute access))
-   #'(nested-hash-set prev 'access* ... value)))
+   #'(nested-hash-set prev #:hash hasheq 'access* ... value)))
 
 (define-syntax-parser let-values/empty
   ([_ ([() expr:expr]) body:expr ...+]
