@@ -47,9 +47,9 @@
   ([_ prev:expr (context:id ...) transform:id]
    #'(let ([state prev]) (transform state) state))
   ([_ prev:expr (context:id ...) (transform:expr)]
-   #'(let ([state prev]) (transform state) state))
-  ([_ prev:expr (context:id ...) (transform:expr (~datum *))]
    #'(let ([state prev]) (transform state)))
+  ([_ prev:expr (context:id ...) (transform:expr (~datum *))]
+   #'(let ([state prev]) (transform state) state))
   ([_ prev:expr (context:id ...) (transform:expr rw-1:kwid ...+)]
    #:with (rw-1-id ...) (filter (lambda (x) x) (attribute rw-1.id))
    #:with (rw-1-id* ...)

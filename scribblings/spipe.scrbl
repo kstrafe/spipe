@@ -37,9 +37,9 @@ The @racket[H~>] form implements @racket[hash]-based pipeline programming. @rack
 
   The first transformation form @racket[callee-id] is always transformed into @racket[(callee)].
 
-  @racket[(callee)] applies the form with the entire state as its argument, and ignoring all return values.
+  @racket[(callee)] applies the form with the entire state as its argument.
 
-  @racket[(callee *)] is a special form that is similar to @racket[(callee)] but it replaces the state with @racket[callee]'s return value.
+  @racket[(callee *)] is a special form that is similar to @racket[(callee)] but ignores the return value.
 
   @racket[(callee read-writes ...+)] simultaneously specifies variables to read from and write to. The reads are given as arguments to @racket[callee] in the order they are specified. The writes are assigned to the returned @racket[value]s in the order they are specified.
 
@@ -59,9 +59,9 @@ The @racket[H~>] form implements @racket[hash]-based pipeline programming. @rack
   @examples[#:eval evaluator #:label "Example of all forms:"
     (H~>
       (hash 'hello "hi" 'world "u")
-      write
-      (print          )
-      (identity      *)
+      (write *)
+      (print *)
+      (identity)
       ((const "you") world)
       (string-append (hello world) (hello-world))
       (displayln     (hello-world)))
