@@ -45,7 +45,7 @@
              transformation ...)
            ) substate))))
   ([_ prev:expr (context:id ...) transform:id]
-   #'(let ([state prev]) (transform state) state))
+   #'(let ([state prev]) (transform state)))
   ([_ prev:expr (context:id ...) (transform:expr)]
    #'(let ([state prev]) (transform state)))
   ([_ prev:expr (context:id ...) (transform:expr (~datum *))]
