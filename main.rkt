@@ -31,7 +31,7 @@
    #'(let-values ([bindings expr]) body ...)))
 
 (define-syntax-parser hash-expand
-  ([_ prev:expr (context:id ...) ((~datum context) (substate:id ...) transformation:expr ...)]
+  ([_ prev:expr (context:id ...) ((~datum #:context) (substate:id ...) transformation:expr ...)]
    #:with (transform/context ...) (map (lambda (x) #`(hash-expand (substate ... context ...) #,x))
                                        (attribute transformation))
    #'(let ([state prev])
