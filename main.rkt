@@ -1,6 +1,6 @@
 #lang racket/base
 
-(provide H~>)
+(provide define/H~> H~>)
 
 (require syntax/parse/define
          racket/list
@@ -100,6 +100,11 @@
               (nested-hash-set* 'writes-id writes-id) ...)))
    )
   )
+
+(define-syntax-parser define/H~>
+  ([_ name:id terms:expr ...]
+   #'(define (name state)
+       (H~> state terms ...))))
 
 (define-syntax-parser H~>
   ([_ init:expr terms:expr ...]
