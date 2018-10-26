@@ -114,6 +114,7 @@
    #'(~> init term/hash-expand  ...)))
 
 (provide top~>
+         top-loop~>
          all~>
          loop~>
          variables
@@ -136,17 +137,18 @@
 
 (define-syntax-parser top-loop~>
   ([_ name:id ...+]
-   #'(lambda (state)
-       (define lst (nested-hash-ref state 'name ...))
-       (cond
-         ([empty? lst] state)
-         ([list? (first lst)]
-          (define top (first lst))
-          (foldl
-            apply
-            top
-            state))
-         (else         ((first lst) state)))
+   #'(lambda (state*)
+       (let loop ([state state*])
+         (define lst (nested-hash-ref state 'name ...))
+         (cond
+           ([empty? lst] state)
+           ([list? (first lst)]
+            (define top (first lst))
+            (foldl
+              apply
+              top
+              state))
+           (else         (loop ((first lst) state)))))
        )
    ))
 
