@@ -3,6 +3,7 @@
 (provide H~>)
 
 (require syntax/parse/define
+         racket/list
          (for-syntax racket/base racket/list racket/string racket/syntax)
          nested-hash threading)
 
@@ -106,3 +107,68 @@
      (for/list ([term (in-list (attribute terms))])
        (quasisyntax/loc term (hash-expand () #,term)))
    #'(~> init term/hash-expand  ...)))
+
+(provide top~>
+         all~>
+         loop~>
+         variables
+         )
+
+(define-syntax-parser variables
+  ([_ state:expr (name:id value:expr) ...+]
+   #'(H~> state
+          ((const value) () (name)) ...)))
+
+(define-syntax-parser top~>
+  ([_ name:id ...+]
+   #'(lambda (state)
+       (define lst (nested-hash-ref state 'name ...))
+       (cond
+         ([empty? lst] state)
+         (else         ((first lst) state)))
+       )
+   ))
+
+(define-syntax-parser top-loop~>
+  ([_ name:id ...+]
+   #'(lambda (state)
+       (define lst (nested-hash-ref state 'name ...))
+       (cond
+         ([empty? lst] state)
+         ([list? (first lst)]
+          (define top (first lst))
+          (foldl
+            apply
+            top
+            state))
+         (else         ((first lst) state)))
+       )
+   ))
+
+(define-syntax-parser all~>
+  ([_ name:id ...+]
+   #'(lambda (state)
+       (define lst (nested-hash-ref state 'name ...))
+       (foldl
+         (lambda (transform state)
+           ((eval transform (current-namespace)) state))
+         state
+         lst)
+       )
+   ))
+
+(define-syntax-parser loop~>
+  ([_ name:id ...+]
+   #'(lambda (state)
+       (let loop ([state* state])
+         (define lst (nested-hash-ref state* 'name ...))
+         (cond
+           ([empty? lst] state*)
+           (else
+             (define state** ((first lst) state*))
+             (define lst* (nested-hash-ref state** 'name ...))
+             (cond
+               ([empty? lst*] state**)
+               (else         (loop (nested-hash-set state** 'name ... (append (rest lst*) (list (first lst*))))))))))
+       )
+   ))
