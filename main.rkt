@@ -144,10 +144,12 @@
            ([empty? lst] state)
            ([list? (first lst)]
             (define top (first lst))
-            (foldl
-              apply
-              top
-              state))
+            (loop
+              (foldl
+                (lambda (transform state)
+                  (transform state))
+                state
+                top)))
            (else         (loop ((first lst) state)))))
        )
    ))
