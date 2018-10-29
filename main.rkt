@@ -176,6 +176,7 @@
              (define lst* (nested-hash-ref state** 'name ...))
              (cond
                ([empty? lst*] state**)
-               (else         (loop (nested-hash-set state** 'name ... (append (rest lst*) (list (first lst*))))))))))
+               ([not (eq? lst* lst)] (loop state**))
+               (else           (loop (nested-hash-set state** 'name ... (append (rest lst*) (list (first lst*))))))))))
        )
    ))
