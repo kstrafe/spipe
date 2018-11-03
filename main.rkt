@@ -1,9 +1,10 @@
 #lang racket/base
 
-(provide define/H~> H~>)
+(provide define/H~> H~> pop-fsm push-fsm set-fsm top-loop~>* top~>* loop~>*)
 
 (require syntax/parse/define
          racket/list
+         racket/function
          (for-syntax racket/base racket/list racket/string racket/syntax)
          nested-hash threading)
 
@@ -182,3 +183,41 @@
                (else           (loop (nested-hash-set state** 'name ... (append (rest lst*) (list (first lst*))))))))))
        )
    ))
+
+
+(define ((set-fsm symbol) fsm)
+  (if (empty? fsm)
+      (list symbol)
+      (cons symbol (rest fsm))))
+
+(define (pop-fsm fsm)
+  (if (empty? fsm)
+    empty
+    (rest fsm)))
+
+(define ((push-fsm symbol) fsm)
+  (cons symbol fsm))
+(define-syntax-parser top-loop~>*
+  ([_ term:id ...+]
+   #'(lambda (state)
+       (H~>
+         state
+         ((curry cons '(term ...)) fsm)
+         ((top-loop~> term ...))
+         (rest fsm)))))
+(define-syntax-parser top~>*
+  ([_ term:id ...+]
+   #'(lambda (state)
+       (H~>
+         state
+         ((curry cons '(term ...)) fsm)
+         ((top~> term ...))
+         (rest fsm)))))
+(define-syntax-parser loop~>*
+  ([_ term:id ...+]
+   #'(lambda (state)
+       (H~>
+         state
+         ((curry cons '(term ...)) fsm)
+         ((loop~> term ...))
+         (rest fsm)))))
