@@ -4,5 +4,5 @@
 (define build-deps '("sandbox-lib" "scribble-lib" "racket-doc" "rackunit-lib"))
 (define scribblings '(("scribblings/spipe.scrbl" ())))
 (define pkg-desc "Pipeline-based programming using hash-tables")
-(define version "0.9.0")
+(define version "0.9")
 (define pkg-authors '("Kevin R. Stravers"))
